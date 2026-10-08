@@ -7,10 +7,13 @@
       "accelerator": "TPU",
       "tpu": "v5e1"
     },
-    "02_serving_gemma4_on_tpu.py": {
-      "title": "Serving Gemma 4 E2B on a single TPU with pure JAX",
+    "02_e2b_repack_vs_stock_on_jax.py": {
+      "title": "Gemma 4 E2B on JAX: Google's W4A16 export against an exact QAT repack",
       "accelerator": "TPU",
       "tpu": "v5e1"
     }
-  }
+  },
+  "authors": [
+    "William McLean"
+  ]
 }

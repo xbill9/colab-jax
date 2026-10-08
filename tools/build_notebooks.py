@@ -91,6 +91,7 @@ def build_one(source: pathlib.Path, cfg: dict) -> nbformat.NotebookNode:
 
     nb.metadata = {
         "accelerator": cfg["notebooks"][source.name].get("accelerator", "TPU"),
+        "authors": [{"name": a} for a in cfg.get("authors", [])],
         "colab": {"name": name, "provenance": [], "toc_visible": True},
         "kernelspec": {"display_name": "Python 3", "name": "python3"},
         "language_info": {"name": "python"},
