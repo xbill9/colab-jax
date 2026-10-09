@@ -38,7 +38,7 @@ lint:
 	ruff format --check src tools
 
 sessions:
-	colab sessions
+	colab --auth adc sessions
 
 clean:
 	rm -f notebooks/*_output.ipynb
