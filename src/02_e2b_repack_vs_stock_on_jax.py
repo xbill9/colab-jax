@@ -106,6 +106,14 @@ disk_free = shutil.disk_usage(os.path.expanduser("~")).free
 print(f"HBM {HBM_LIMIT / 1e9:.2f} GB   host RAM {host_ram / 1e9:.1f} GB   free disk {disk_free / 1e9:.0f} GB")
 assert disk_free > 30e9, "need about 30 GB free disk for the three checkpoints"
 
+
+def host_used_gb():
+    """Host RAM in use on the whole VM, as Colab's RAM meter counts it."""
+    info = dict(line.split(":", 1) for line in open("/proc/meminfo"))
+    kb = int(info["MemTotal"].split()[0]) - int(info["MemAvailable"].split()[0])
+    return kb / 1e6
+
+
 # %%
 # Cell 1.2: the pure-JAX engine, pinned, and the readers it needs
 import importlib.util
@@ -151,7 +159,14 @@ print(
 
 # %%
 # Cell 2.1: download the three checkpoints (about 26 GB; 5 to 15 minutes)
+# Each download runs in its own Python process. The downloader can hold several GB of host RAM
+# after it finishes, and the VM only gets that back when the process exits. Downloading inside
+# the notebook left too little RAM to load the checkpoints later.
+DOWNLOAD = """
+import sys
 from huggingface_hub import snapshot_download
+print(snapshot_download(sys.argv[1], revision=sys.argv[2], allow_patterns=["*.safetensors", "*.json"]))
+"""
 
 CHECKPOINTS = {
     "qat": ("google/gemma-4-E2B-it-qat-q4_0-unquantized", "6befbaca7398925921802abd1f277b495b78b738"),
@@ -161,9 +176,13 @@ CHECKPOINTS = {
 paths, disk_bytes = {}, {}
 for name, (repo, rev) in CHECKPOINTS.items():
     t0 = time.perf_counter()
-    paths[name] = snapshot_download(repo, revision=rev, allow_patterns=["*.safetensors", "*.json"])
+    proc = subprocess.run([sys.executable, "-c", DOWNLOAD, repo, rev], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"download of {repo} failed:\n{proc.stderr[-2000:]}")
+    paths[name] = proc.stdout.strip().splitlines()[-1]
     disk_bytes[name] = sum(f.stat().st_size for f in pathlib.Path(paths[name]).glob("*.safetensors"))
     print(f"{name:7s} {repo:45s} {disk_bytes[name] / 1e9:6.2f} GB  ({time.perf_counter() - t0:.0f} s)")
+print(f"\nhost RAM in use: {host_used_gb():.1f} of {host_ram / 1e9:.1f} GB")
 
 # %%
 # Cell 2.2: what each file holds, and the duplicate lm_head
@@ -363,7 +382,8 @@ def load(name):
     engine.load(local_dir=paths[name])
     engine.bos_token_id = BOS
     print(
-        f"{name}: loaded in {time.perf_counter() - t0:.0f} s, {engine.weight_bytes / 1e9:.2f} GB of weights on the chip"
+        f"{name}: loaded in {time.perf_counter() - t0:.0f} s, {engine.weight_bytes / 1e9:.2f} GB of weights on the chip, "
+        f"host RAM in use {host_used_gb():.1f} GB"
     )
     return engine
 
@@ -423,7 +443,10 @@ def measure(name):
     }
     del engine, fn
     gc.collect()
-    print(f"{name}: released, {dev.memory_stats()['bytes_in_use'] / 1e9:.2f} GB still in use on the chip")
+    print(
+        f"{name}: released, {dev.memory_stats()['bytes_in_use'] / 1e9:.2f} GB still in use on the chip, "
+        f"host RAM in use {host_used_gb():.1f} GB"
+    )
 
 
 # %%
