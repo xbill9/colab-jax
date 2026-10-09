@@ -307,9 +307,9 @@ print("   " + "   ".join(f"{m}: {levels[m] / levels.sum():.1%}" for m in range(1
 # **What you should see.** For the stock build: relative error near 0.067 on every tensor, about one
 # value in eight identical to the QAT value (the ones that happen to land on both grids), `step=max/7.5`
 # at 100%, and no group whose peak lands on a whole level. That is the signature of re-rounding by
-# min-max. For the repack: relative error near 0.002, about 90% of values identical, and the peak of
-# nearly every group on a whole level. The values that differ do so by the bf16 rounding of the
-# stored step, a fraction of a percent.
+# min-max. For the repack: relative error near 0.002, about three values in four identical, and the
+# peak of nearly every group on a whole level. The values that differ do so by the bf16 rounding of
+# the stored step, a fraction of a percent, against 6.7% for the stock build.
 #
 # The last line shows why no fixed rule recovers the trained step: the peak sits on level 7 in some
 # groups and level 8 in others. A rule that assumes level 8 (max/8) is right for the second kind
@@ -514,51 +514,60 @@ for b in CHECKPOINTS:
 # %% [markdown]
 # ## 6. Scorecard
 #
-# **What we are testing.** Every source result next to the one you just measured. The source rows
-# came from vLLM on a v5e chip; yours came from a pure-JAX engine on whatever chip you have. The
-# claim under test is the direction of each difference, which should hold on any chip.
+# **What we are testing.** Every source result next to the one you just measured. The source
+# columns came from vLLM on a v5e chip; yours came from a pure-JAX engine on whatever chip you have.
+# Each pair of columns puts the two builds side by side, so read across a pair: stock against
+# repack. The claim under test is the direction of each difference, which should hold on any chip.
+#
+# The repack is the better build where the weights differ: fidelity to the QAT model and download
+# size. Speed and memory on the chip should tie, because both builds store the same 4-bit format in
+# the same shapes and do the same work per token.
 
 # %%
 # Cell 6.1: the scorecard
 s, r = results["stock"], results["repack"]
 rows = [
+    # (row, stock: source, repack: source, stock: today, repack: today)
     (
         "relative error vs QAT values",
         "0.0665-0.0667",
-        f"{grid['stock']['rel_err']:.4f}",
         "n/a",
+        f"{grid['stock']['rel_err']:.4f}",
         f"{grid['repack']['rel_err']:.4f}",
     ),
     (
         "groups with step = max/7.5",
         "100.00%",
-        f"{grid['stock']['minmax']:.2%}",
         "n/a",
+        f"{grid['stock']['minmax']:.2%}",
         f"{grid['repack']['minmax']:.2%}",
     ),
     (
         "groups with peak on a level",
         "n/a",
-        f"{grid['stock']['on_level']:.2%}",
         "n/a",
+        f"{grid['stock']['on_level']:.2%}",
         f"{grid['repack']['on_level']:.2%}",
     ),
-    ("mean KL vs QAT model", "n/a", f"{s['kl_mean']:.5f}", "n/a", f"{r['kl_mean']:.5f}"),
-    ("same top token as QAT model", "n/a", f"{s['same_top']:.2%}", "n/a", f"{r['same_top']:.2%}"),
-    ("perplexity ratio vs QAT model", "n/a", f"{s['ppl_ratio']:.4f}", "n/a", f"{r['ppl_ratio']:.4f}"),
-    ("test suite (3,880 records, vLLM)", "65.5%", "not run", "67.8%", "not run"),
-    ("download, GB", "8.32", f"{disk_bytes['stock'] / 1e9:.2f}", "7.51", f"{disk_bytes['repack'] / 1e9:.2f}"),
-    ("decode tok/s, 1 request", "136.6", f"{s['tok_s']:.1f}", "136.5", f"{r['tok_s']:.1f}"),
+    ("mean KL vs QAT model", "n/a", "n/a", f"{s['kl_mean']:.5f}", f"{r['kl_mean']:.5f}"),
+    ("same top token as QAT model", "n/a", "n/a", f"{s['same_top']:.2%}", f"{r['same_top']:.2%}"),
+    ("perplexity ratio vs QAT model", "n/a", "n/a", f"{s['ppl_ratio']:.4f}", f"{r['ppl_ratio']:.4f}"),
+    ("test suite, 3,880 records", "65.5%", "67.8%", "not run", "not run"),
+    ("download, GB", "8.32", "7.51", f"{disk_bytes['stock'] / 1e9:.2f}", f"{disk_bytes['repack'] / 1e9:.2f}"),
+    ("decode tok/s, 1 request", "136.6", "136.5", f"{s['tok_s']:.1f}", f"{r['tok_s']:.1f}"),
+    ("decode speed, repack / stock", "", f"{136.5 / 136.6:.3f}x", "", f"{r['tok_s'] / s['tok_s']:.3f}x"),
 ]
-print(f"{'':34s} {'stock: source':>14s} {'stock: today':>13s} {'repack: source':>15s} {'repack: today':>14s}")
+print(f"{'':34s} {'source (vLLM)':^29s} {'today (pure JAX)':^29s}")
+print(f"{'':34s} {'stock':>14s} {'repack':>14s} {'stock':>14s} {'repack':>14s}")
 for row in rows:
-    print(f"{row[0]:34s} {row[1]:>14s} {row[2]:>13s} {row[3]:>15s} {row[4]:>14s}")
+    print(f"{row[0]:34s} {row[1]:>14s} {row[2]:>14s} {row[3]:>14s} {row[4]:>14s}")
 
 # %% [markdown]
-# **What you should see.** The weight and output rows favor the repack by a wide margin, the speed
-# rows are level, and the download row favors the repack by the duplicate `lm_head`. The speed rows
-# differ in absolute value from the source because the engines differ: vLLM's int4 path against a
-# reference dequantize-then-multiply in pure JAX. Compare the two builds within one column.
+# **What you should see.** The weight and output rows favor the repack by a wide margin, and the
+# download row favors it by the duplicate `lm_head`. The speed ratio sits near 1.00x in both pairs:
+# a tie, as the format predicts. The absolute speeds differ between the pairs because the engines
+# differ: vLLM's int4 path against a reference dequantize-then-multiply in pure JAX. That gap says
+# nothing about either build, so compare stock with repack inside a pair, never across pairs.
 #
 # **So, which one?** The repack. It holds the weights Google trained, runs at the same speed in the
 # same format, and is smaller to download. Any loader that reads Google's `-qat-w4a16-ct` reads it
