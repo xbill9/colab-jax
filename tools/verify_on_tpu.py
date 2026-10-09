@@ -58,7 +58,22 @@ STDERR_ALLOWLIST = (
     "WARNING:absl",
     "Transparent hugepages are not enabled",
     "cloud_tpu_init.py",
+    # huggingface_hub under `colab exec`: Colab secrets are only served to the
+    # UI, so the HF_TOKEN lookup times out and downloads go unauthenticated.
+    # Notebook 02 needs no token, so both are benign. Seen 2026-10-09.
+    "HF_TOKEN",
+    # Download progress bars from huggingface_hub and datasets.
+    "Fetching ",
+    "Downloading bytes",
+    "Reconstructing",
+    "it/s]",
 )
+
+# `colab exec --timeout` is a deadline per cell: the cell's whole run, not the
+# gap between outputs. The CLI default of 30 s fails notebook 02 on its first
+# download. Its slowest cells are the 26 GB download (5-15 min) and each
+# checkpoint's load-and-measure cell (load alone 320-396 s on v5e-1).
+EXEC_TIMEOUT_S = 1800
 
 
 def colab(auth: str, *args: str, **kw) -> subprocess.CompletedProcess:
@@ -223,7 +238,7 @@ def verify(stem: str, tpu: str, keep: bool, auth: str, attempts: int = 3) -> boo
 
     try:
         colab(auth, "status", "-s", session)
-        result = colab(auth, "exec", "-s", session, "-f", str(notebook))
+        result = colab(auth, "exec", "-s", session, "-f", str(notebook), "--timeout", str(EXEC_TIMEOUT_S))
     finally:
         # Always in a finally: a runtime left up keeps spending compute units,
         # so a crash between here and teardown costs real money.
