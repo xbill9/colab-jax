@@ -2,12 +2,16 @@
 
 Colab notebooks for the AI GDE **Marathon: JAX on TPU Tutorial**. Apache 2.0.
 
-Two notebooks:
+Two notebooks. Open one in Colab, pick **Runtime → Change runtime type → v5e-1 TPU**, then
+**Runtime → Run all**.
 
-| Notebook | What it teaches | Needs a token? |
-| --- | --- | --- |
-| [`01_jax_tpu_mechanics`](notebooks/01_jax_tpu_mechanics.ipynb) | Buffer donation, `jit` retracing and static shapes, cached decode, int8 KV — measured on synthetic arrays | No |
-| [`02_serving_gemma4_on_tpu`](notebooks/02_serving_gemma4_on_tpu.ipynb) | The same mechanics spent on a real `gemma-4-E2B-it-qat-w4a16-ct` checkpoint, loaded without PyTorch | Yes (gated Gemma) |
+| Notebook | What it teaches | Token? | Status |
+| --- | --- | --- | --- |
+| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/xbill9/colab-jax/blob/main/notebooks/01_jax_tpu_mechanics.ipynb) [`01_jax_tpu_mechanics`](notebooks/01_jax_tpu_mechanics.ipynb) | Buffer donation, `jit` retracing and static shapes, cached decode, int8 KV — measured on synthetic arrays | No | In progress |
+| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/xbill9/colab-jax/blob/main/notebooks/02_e2b_repack_vs_stock_on_jax.ipynb) [`02_e2b_repack_vs_stock_on_jax`](notebooks/02_e2b_repack_vs_stock_on_jax.ipynb) | Gemma 4 E2B in pure JAX: Google's W4A16 export against an exact repack of the QAT weights — weight error, next-token KL, speed and memory | No | Ready |
+
+Notebook 02 downloads about 26 GB and takes 30 to 40 minutes on v5e-1. To keep your outputs, use
+**File → Save a copy in Drive**.
 
 The measurements come from single-chip TPU rigs in `~/tpu-jax` and
 `~/gemma4-dev`. Colab's TPU runtimes are **v5e-1 and v6e-1** — the same silicon
@@ -31,7 +35,7 @@ The `.ipynb` files *are* committed, because that is what Colab serves from
 GitHub. `make check` fails if they have drifted from their sources.
 
 ```bash
-make setup     # jupytext, nbformat, google-colab-cli
+make setup     # pip install -r requirements-dev.txt: jupytext, nbformat, google-colab-cli
 make build     # src/*.py -> notebooks/*.ipynb
 make check     # fail if committed notebooks are stale (CI runs this)
 make verify    # run every notebook on a real Colab TPU; fail on any error
@@ -53,10 +57,19 @@ colab --auth adc stop -s verify-01
 `tools/verify_on_tpu.py` scans it for `output_type == "error"` and unexpected
 stderr, then files it under `runs/<date>/` as evidence.
 
-`--auth adc` reuses your gcloud Application Default Credentials. The CLI's own
-default is `oauth2`, which blocks on a pasted browser code and cannot be
-scripted; ADC must be a user credential, since a Colab runtime belongs to a
-Google user and bills against that user's compute units.
+`--auth adc` reuses your gcloud Application Default Credentials. They must be a
+user credential, since a Colab runtime belongs to a Google user and bills
+against that user's compute units, and they must carry the `colaboratory`
+scope, which a plain `gcloud auth application-default login` does not grant.
+
+`--auth oauth2` uses the CLI's own login instead. Sign in once in a terminal,
+`colab --auth oauth2 sessions`, and paste back the code it asks for; the token
+is saved under `~/.config/colab-cli/` and refreshes itself, so later runs need
+no prompt:
+
+```
+python3 tools/verify_on_tpu.py --auth oauth2 02_e2b_repack_vs_stock_on_jax
+```
 
 `make verify-v6e1` targets the 32 GB chip, but v6e-1 needs a Colab tier this
 account does not have — it returns `Backend rejected accelerator 'V6E1'`.
@@ -75,11 +88,7 @@ lists anything still up; `colab stop -s <name>` releases it.
   page hands over the editing tools. Good for live iteration on one notebook
   against a real TPU; wrong tool for building two deterministically.
 
-Both want `uv`, which is not installed on this machine:
-
-```bash
-pip install uv && uv tool install google-colab-cli
-```
+`make setup` installs the CLI with plain `pip`.
 
 ## Layout
 
