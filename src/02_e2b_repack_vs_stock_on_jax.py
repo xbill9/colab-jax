@@ -114,6 +114,31 @@ def host_used_gb():
     return kb / 1e6
 
 
+def file_cache_gb():
+    """Host RAM holding cached file contents, which the line above does not count."""
+    info = dict(line.split(":", 1) for line in open("/proc/meminfo"))
+    return int(info["Cached"].split()[0]) / 1e6
+
+
+def flush_file_cache():
+    """Write the downloads to disk and drop the checkpoint files from the VM's file cache.
+
+    Linux keeps recently written and read files in RAM and frees that memory on demand, but Colab
+    can count it against the session and crash it. Flushing after each step keeps it from piling up.
+    """
+    from huggingface_hub.constants import HF_HUB_CACHE
+
+    os.sync()
+    try:
+        with open("/proc/sys/vm/drop_caches", "w") as f:
+            f.write("1\n")
+    except OSError:  # not allowed: ask the kernel to drop each checkpoint file instead
+        for f in pathlib.Path(HF_HUB_CACHE).rglob("blobs/*"):
+            fd = os.open(f, os.O_RDONLY)
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+            os.close(fd)
+
+
 # %%
 # Cell 1.2: the pure-JAX engine, pinned, and the readers it needs
 import importlib.util
@@ -182,7 +207,12 @@ for name, (repo, rev) in CHECKPOINTS.items():
     paths[name] = proc.stdout.strip().splitlines()[-1]
     disk_bytes[name] = sum(f.stat().st_size for f in pathlib.Path(paths[name]).glob("*.safetensors"))
     print(f"{name:7s} {repo:45s} {disk_bytes[name] / 1e9:6.2f} GB  ({time.perf_counter() - t0:.0f} s)")
-print(f"\nhost RAM in use: {host_used_gb():.1f} of {host_ram / 1e9:.1f} GB")
+cached = file_cache_gb()
+flush_file_cache()
+print(
+    f"\nhost RAM in use: {host_used_gb():.1f} of {host_ram / 1e9:.1f} GB   "
+    f"file cache {cached:.1f} GB, {file_cache_gb():.1f} GB after flushing"
+)
 
 # %%
 # Cell 2.2: what each file holds, and the duplicate lm_head
@@ -383,8 +413,9 @@ def load(name):
     engine.bos_token_id = BOS
     print(
         f"{name}: loaded in {time.perf_counter() - t0:.0f} s, {engine.weight_bytes / 1e9:.2f} GB of weights on the chip, "
-        f"host RAM in use {host_used_gb():.1f} GB"
+        f"host RAM in use {host_used_gb():.1f} GB, file cache {file_cache_gb():.1f} GB"
     )
+    flush_file_cache()
     return engine
 
 
@@ -443,9 +474,10 @@ def measure(name):
     }
     del engine, fn
     gc.collect()
+    flush_file_cache()
     print(
         f"{name}: released, {dev.memory_stats()['bytes_in_use'] / 1e9:.2f} GB still in use on the chip, "
-        f"host RAM in use {host_used_gb():.1f} GB"
+        f"host RAM in use {host_used_gb():.1f} GB, file cache {file_cache_gb():.1f} GB"
     )
 
 
