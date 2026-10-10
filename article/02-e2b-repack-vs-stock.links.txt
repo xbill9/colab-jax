@@ -1,4 +1,6 @@
 devto     = https://dev.to/gde/gemma-4-e2b-in-pure-jax-on-a-colab-tpu-googles-4-bit-export-against-an-exact-repack-4dle
-colab     = https://colab.research.google.com/github/xbill9/colab-jax/blob/main/notebooks/02_e2b_repack_vs_stock_on_jax.ipynb
+live      = https://colab.research.google.com/github/xbill9/colab-jax/blob/main/notebooks/02_e2b_repack_vs_stock_on_jax.ipynb
 medium    = https://xbill999.medium.com/gemma-4-e2b-in-pure-jax-on-a-colab-tpu-googles-4-bit-export-against-an-exact-repack-9fd2b3f543a0
 substack  = https://xbill9.substack.com/p/gemma-4-e2b-in-pure-jax-on-a-colab
+repo      = https://github.com/xbill9/colab-jax
+linkedin  = https://www.linkedin.com/feed/update/urn:li:share:7514491210367926272/
