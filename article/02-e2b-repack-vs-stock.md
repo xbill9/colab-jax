@@ -1,14 +1,14 @@
 ---
 title: "Gemma 4 E2B in Pure JAX on a Colab TPU: Google's 4-Bit Export Against an Exact Repack"
 published: false
-description: "A Colab notebook for the AI GDE Marathon that loads three Gemma 4 E2B checkpoints into a pure-JAX engine on one TPU v5e chip and measures, on the reader's own chip, how far each 4-bit build sits from the weights Google trained. The repack holds the trained grid and comes out 343x closer to the QAT model at the same speed and a smaller download."
+description: "A Colab notebook for the AI GDE Marathon that loads three Gemma 4 E2B checkpoints into a pure-JAX engine on one TPU v5e chip and measures, on the reader's own chip, how far each 4-bit build sits from the weights Google trained. The repack holds the trained grid and comes out 342.6x closer to the QAT model at the same speed and a smaller download."
 tags: jax, tpu, gemma, machinelearning
 cover_image: https://raw.githubusercontent.com/xbill9/colab-jax/main/article/devto-cover.c35e91a0.jpg
 ---
 
 This article provides a step by step guide to a Colab notebook that serves Gemma 4 E2B on a single TPU v5e chip with a pure-JAX engine and compares two 4-bit builds of the same model against the weights Google trained. Every number below was measured in the notebook on a Colab v5e-1 runtime, and the executed notebook is committed.
 
-Google ships E2B in 4 bits as `gemma-4-E2B-it-qat-w4a16-ct`. Its export rounds every weight a second time, onto a grid the model never trained on. A repack that stores the trained grid instead lands 343 times closer to the original model in next-token predictions, matches its top token 99.29% of the time against 85.96%, writes the same 128-token story word for word, runs at the same speed and downloads 0.8 GB less.
+Google ships E2B in 4 bits as `gemma-4-E2B-it-qat-w4a16-ct`. Its export rounds every weight a second time, onto a grid the model never trained on. A repack that stores the trained grid instead lands 342.6 times closer to the original model in next-token predictions, matches its top token 99.29% of the time against 85.96%, writes the same 128-token story word for word, runs at the same speed and downloads 0.8 GB less.
 
 https://colab.research.google.com/github/xbill9/colab-jax/blob/main/notebooks/02_e2b_repack_vs_stock_on_jax.ipynb
 
@@ -180,7 +180,7 @@ The repack. It holds the weights Google trained, runs at the same speed in the s
 The goal of this notebook was to measure, on a reader's own Colab TPU, whether Google's 4-bit Gemma 4 E2B export holds the weights the model was trained on, and what a repack that holds them exactly changes. The key to the solution was putting all three checkpoints through one pure-JAX loader, one forward pass, one text and one prompt, with the QAT checkpoint as the reference for both 4-bit builds. The results were:
 
 - 🟢 The repack holds the trained grid: 0.19% error, 73.65% of values bit-identical, the largest weight on a trained level in 99.92% of groups
-- 🟢 Its next-token predictions are 343 times closer to the QAT model's than the export's, at every one of 4,096 positions
+- 🟢 Its next-token predictions are 342.6 times closer to the QAT model's than the export's, at every one of 4,096 positions
 - 🟢 It writes the QAT model's 128-token greedy story token for token
 - 🟢 Same speed (0.996x) and same chip memory (6.56 GB), 0.8 GB smaller to download
 - ⚠️ In this engine both 4-bit builds decode slower than bf16 (93 against 135 tokens per second), because the weights are unpacked at every step
