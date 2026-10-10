@@ -3,7 +3,7 @@ title: "Gemma 4 E2B in Pure JAX on a Colab TPU: Google's 4-Bit Export Against an
 published: false
 description: "A Colab notebook for the AI GDE Marathon that loads three Gemma 4 E2B checkpoints into a pure-JAX engine on one TPU v5e chip and measures, on the reader's own chip, how far each 4-bit build sits from the weights Google trained. The repack holds the trained grid and comes out 343x closer to the QAT model at the same speed and a smaller download."
 tags: jax, tpu, gemma, machinelearning
-cover_image: https://raw.githubusercontent.com/xbill9/colab-jax/main/article/devto-cover.a0d3ad43.jpg
+cover_image: https://raw.githubusercontent.com/xbill9/colab-jax/main/article/devto-cover.c35e91a0.jpg
 ---
 
 This article provides a step by step guide to a Colab notebook that serves Gemma 4 E2B on a single TPU v5e chip with a pure-JAX engine and compares two 4-bit builds of the same model against the weights Google trained. Every number below was measured in the notebook on a Colab v5e-1 runtime, and the executed notebook is committed.
